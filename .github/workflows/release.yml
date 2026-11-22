@@ -1,0 +1,23 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: ./Scripts/build_app.sh --zip
+        env:
+          VERSION: ${{ github.ref_name }}
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: .build/ReteCasa.zip
+          generate_release_notes: true
