@@ -38,16 +38,16 @@ enum SelfTest {
 import AppKit
 
 extension Page {
-    /// `--page diagnosis` apre direttamente quella pagina (serve per le istantanee).
+    /// `--page status` apre direttamente quella pagina (serve per le istantanee).
     static var initial: Page {
         let a = CommandLine.arguments
         if let i = a.firstIndex(of: "--page"), i + 1 < a.count, let p = Page(rawValue: a[i + 1]) { return p }
-        return .overview
+        return .status
     }
 }
 
 enum WindowSnapshot {
-    /// `ReteCasa --snapshot out.png [--wait 25] [--page diagnosis]`: salva la finestra in PNG e chiude.
+    /// `ReteCasa --snapshot out.png [--wait 25] [--page status]`: salva la finestra in PNG e chiude.
     static func schedule(args: [String]) {
         guard let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count else { return }
         let path = args[i + 1]

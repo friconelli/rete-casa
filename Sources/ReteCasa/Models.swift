@@ -115,6 +115,30 @@ enum Area: String {
     case general = "Generale"
 }
 
+/// Cosa può fare l'app per risolvere un problema.
+enum FindingAction: String {
+    case reconnectMac, fireStickSwitch, recoverFireStick, rescan
+
+    var label: String {
+        switch self {
+        case .reconnectMac: return "Cerca connessione migliore"
+        case .fireStickSwitch: return "Cerca segnale migliore"
+        case .recoverFireStick: return "Riconnetti Fire Stick"
+        case .rescan: return "Rifai l'analisi"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .reconnectMac: return "arrow.triangle.2.circlepath"
+        case .fireStickSwitch: return "tv"
+        case .recoverFireStick: return "link"
+        case .rescan: return "arrow.clockwise"
+        }
+    }
+    /// Interrompe una riproduzione in corso: chiede conferma.
+    var needsConfirm: Bool { self == .fireStickSwitch }
+}
+
 struct Finding: Identifiable, Equatable {
     var id = UUID()
     var severity: Severity
@@ -122,6 +146,27 @@ struct Finding: Identifiable, Equatable {
     var title: String
     var detail: String
     var suggestion: String? = nil
+    var action: FindingAction? = nil
+}
+
+/// Router o mesh Starlink, anche quando non risponde più.
+struct NodeStatus: Identifiable, Equatable {
+    var mac: String
+    var name: String
+    var ip: String
+    var isRouter: Bool
+    var online: Bool
+    var latencyMs: Double?
+    var id: String { mac }
+}
+
+/// Un passaggio dell'analisi completa.
+struct CheckStep: Identifiable, Equatable {
+    enum State: Equatable { case waiting, running, done(Severity), skipped }
+    var id: String
+    var title: String
+    var state: State = .waiting
+    var detail: String = ""
 }
 
 // MARK: - Monitor

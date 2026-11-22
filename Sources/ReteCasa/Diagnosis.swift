@@ -10,6 +10,8 @@ struct Snapshot {
     var devices: [LANDevice] = []
     var knownNodeMACs: Set<String> = []
     var fireStick: FireStickStatus?
+    var fireStickProblem: String?
+    var nodeNames: [String: String] = [:]
     var plexOK: Bool?
 }
 
@@ -70,11 +72,11 @@ enum Diagnosis {
             if w.rssi < -72 {
                 out.append(Finding(severity: .warn, area: .macWiFi, title: "Segnale Wi‑Fi del Mac debole (\(w.rssi) dBm)",
                                    detail: "Sei collegato in \(w.band.rawValue), canale \(w.channel).",
-                                   suggestion: "Avvicinati a un mesh o usa «Riconnetti Wi‑Fi» per rifare la scelta del nodo."))
+                                   suggestion: "Avvicinati a un mesh o rifai la scelta del nodo.", action: .reconnectMac))
             } else if w.band == .ghz24 && w.linkMbps < 150 {
                 out.append(Finding(severity: .info, area: .macWiFi, title: "Il Mac è sui 2,4 GHz",
                                    detail: "Collegamento a \(w.linkMbps) Mbps: più lento dei 5 GHz.",
-                                   suggestion: "«Riconnetti Wi‑Fi» spesso lo riporta sui 5 GHz."))
+                                   suggestion: "Rifare la connessione spesso lo riporta sui 5 GHz.", action: .reconnectMac))
             } else {
                 out.append(Finding(severity: .ok, area: .macWiFi, title: "Wi‑Fi del Mac a posto",
                                    detail: "\(w.band.rawValue), canale \(w.channel), \(w.rssi) dBm, collegamento \(w.linkMbps) Mbps."))
@@ -83,7 +85,7 @@ enum Diagnosis {
         if let r = s.router, !r.isUnreachable, (r.loss > 2 || r.avg > 80) {
             out.append(Finding(severity: .warn, area: .macWiFi, title: "Wi‑Fi di casa instabile verso il router",
                                detail: "Ping al router: \(fmt(r.avg)) ms in media, \(fmt(r.loss))% persi. Il problema è dentro casa, non in Starlink.",
-                               suggestion: "Riconnetti il Wi‑Fi o avvicinati a un nodo mesh."))
+                               suggestion: "Riconnetti il Wi‑Fi o avvicinati a un nodo mesh.", action: .reconnectMac))
         }
 
         // Mesh
@@ -92,10 +94,12 @@ enum Diagnosis {
             let current = Set(nodes.map(\.mac))
             let missing = s.knownNodeMACs.subtracting(current)
             if !missing.isEmpty {
+                let names = missing.sorted().map { s.nodeNames[$0] ?? $0 }.joined(separator: ", ")
                 out.append(Finding(severity: .bad, area: .mesh,
-                                   title: missing.count == 1 ? "Un nodo Starlink non risponde" : "\(missing.count) nodi Starlink non rispondono",
-                                   detail: "Mancano: \(missing.sorted().joined(separator: ", ")). Era visibile nelle scansioni precedenti.",
-                                   suggestion: "Stacca la corrente al mesh per 10 secondi e riattaccala."))
+                                   title: missing.count == 1 ? "\(names) non risponde" : "\(missing.count) mesh non rispondono (\(names))",
+                                   detail: "Era visibile nelle analisi precedenti e ora non c'è più sulla rete: i dispositivi vicini passano a un nodo più lontano.",
+                                   suggestion: "Stacca la corrente al mesh per 10 secondi e riattaccala, poi rifai l'analisi.",
+                                   action: .rescan))
             } else if nodes.isEmpty {
                 out.append(Finding(severity: .info, area: .mesh, title: "Nessun dispositivo Starlink riconosciuto",
                                    detail: "La scansione non ha trovato indirizzi Starlink."))
@@ -107,16 +111,22 @@ enum Diagnosis {
         }
 
         // Fire Stick
-        if let f = s.fireStick {
+        if let problem = s.fireStickProblem {
+            out.append(Finding(severity: .bad, area: .fireStick, title: "Fire Stick non raggiungibile",
+                               detail: problem,
+                               suggestion: "Sveglia la TV con il telecomando, poi riprova a collegarla.",
+                               action: .recoverFireStick))
+        } else if let f = s.fireStick {
             let rssi = f.rssi ?? -127
             if rssi < -72 {
                 out.append(Finding(severity: .bad, area: .fireStick, title: "Fire Stick con segnale debole (\(rssi) dBm)",
                                    detail: "Probabilmente è agganciato a un nodo lontano. Collegamento a \(f.linkMbps ?? 0) Mbps, \(f.band.rawValue).",
-                                   suggestion: "Usa «Cerca segnale migliore»: riavvia il Wi‑Fi della chiavetta finché trova un nodo vicino."))
+                                   suggestion: "Riavvia il Wi‑Fi della chiavetta finché trova un nodo vicino.",
+                                   action: .fireStickSwitch))
             } else if rssi < -67 {
                 out.append(Finding(severity: .warn, area: .fireStick, title: "Segnale del Fire Stick appena sufficiente (\(rssi) dBm)",
                                    detail: "\(f.band.rawValue), collegamento a \(f.linkMbps ?? 0) Mbps.",
-                                   suggestion: "Prova «Cerca segnale migliore»."))
+                                   suggestion: "Prova a farle cambiare nodo.", action: .fireStickSwitch))
             } else {
                 out.append(Finding(severity: .ok, area: .fireStick, title: "Fire Stick ben collegato (\(rssi) dBm)",
                                    detail: "\(f.band.rawValue), collegamento a \(f.linkMbps ?? 0) Mbps."))

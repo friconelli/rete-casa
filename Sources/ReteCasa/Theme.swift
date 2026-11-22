@@ -81,6 +81,10 @@ struct MetricTile: View {
                 HStack(spacing: 6) {
                     Image(systemName: symbol).foregroundStyle(severity == .info ? Theme.accentDeep : Theme.color(severity))
                     Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Spacer(minLength: 4)
+                    if severity != .info {
+                        Pill(text: severity == .ok ? "Buono" : severity == .warn ? "Da controllare" : "Problema", color: Theme.color(severity))
+                    }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(value == "—" ? "n/d" : value).font(.system(size: 30, weight: .bold, design: .rounded)).monospacedDigit()

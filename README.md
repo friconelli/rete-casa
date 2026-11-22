@@ -3,12 +3,13 @@
 App macOS (SwiftUI, SwiftPM, nessuna dipendenza, macOS 13+) che controlla la rete di casa (router Starlink, mesh, Fire Stick, NAS) e dice **dove sta il problema**: Starlink, Wi‑Fi di casa, un mesh spento o la chiavetta agganciata al nodo sbagliato.
 
 ## Funzioni
-- **Panoramica**: Wi‑Fi del Mac (banda, canale, segnale), ping a router e internet, velocità (test di Apple), Fire Stick, numero di dispositivi Starlink.
-- **Diagnosi**: regole che confrontano ping verso router e verso internet. Router senza perdite ma internet con perdite = è Starlink; ping al router instabile = è il Wi‑Fi di casa. Segnala anche un mesh che non risponde più e permette di copiare il report.
-- **Dispositivi**: scansione della rete locale; riconosce router/mesh Starlink (indirizzo del costruttore 74:24:9f), NAS con Plex e Fire TV.
-- **Fire Stick** (via ADB): segnale, banda, velocità del collegamento, ping, app in primo piano, velocità reale scaricando 25 MB dalla chiavetta, e **«Cerca segnale migliore»**: riavvia il suo Wi‑Fi (fino a 5 volte) finché si aggancia a un segnale sopra la soglia.
-- **Wi‑Fi del Mac**: dettagli e «Riconnetti Wi‑Fi» (spegne/riaccende per rifare la scelta di nodo e banda); elenco reti salvate.
-- **Monitor**: ping leggeri ogni pochi secondi con grafico, da tenere acceso durante una partita (non occupa la linea).
+- **Stato**: un unico pulsante, **Analisi completa**, fa in sequenza quello che si farebbe a mano: Wi‑Fi del Mac, ping a router e internet, scansione dei dispositivi, router e mesh Starlink, Fire Stick, Synology/Plex (e, se lo spunti, la velocità). Ogni passaggio mostra il suo esito.
+- **Cosa non va**: i problemi trovati, in italiano semplice, ciascuno con il pulsante per provare a risolverlo (cerca connessione migliore, riconnetti il Fire Stick, cerca segnale migliore, rifai l'analisi).
+- **La tua rete**: mappa con Internet, router e mesh (anche quando uno è spento: resta in elenco come «non risponde») e i dispositivi (Fire Stick, Synology/Plex, Mac). I nodi si possono rinominare in **Dispositivi** (es. «Mesh salone»).
+- **Diagnosi**: confronta i ping verso router e verso internet. Router senza perdite ma internet con perdite = è Starlink; ping al router instabile = è il Wi‑Fi di casa. Segnala un mesh che non risponde e un Fire Stick agganciato al nodo sbagliato.
+- **Fire Stick** (via ADB): segnale, banda, collegamento, ping, app in primo piano, velocità reale; **«Riconnetti Fire Stick»** (cerca di nuovo l'indirizzo e riprova 6 volte) e **«Cerca segnale migliore»** (riavvia il suo Wi‑Fi fino a 5 volte finché supera la soglia).
+- **Wi‑Fi del Mac**: dettagli e **«Cerca connessione migliore»** (riavvia il Wi‑Fi fino a 4 volte finché passa ai 5 GHz o a un segnale forte); elenco reti salvate.
+- **Monitor**: ping leggeri con grafico, da tenere acceso durante una partita (non occupa la linea).
 
 ## Limiti
 - Starlink non permette di scegliere il nodo mesh a cui si collega un dispositivo: l'app può solo far rifare la scelta (riconnessione) finché il segnale è buono.
@@ -21,7 +22,7 @@ App macOS (SwiftUI, SwiftPM, nessuna dipendenza, macOS 13+) che controlla la ret
 swift build                          # sviluppo
 ./Scripts/build_app.sh --install     # app universale (arm64 + x86_64) in /Applications
 ./.build/debug/ReteCasa --selftest [--fs 192.168.1.x] [--speed]   # misure da terminale, senza finestra
-./.build/debug/ReteCasa --snapshot out.png --wait 30 [--page diagnosis]   # PNG della finestra
+./.build/debug/ReteCasa --snapshot out.png --wait 30 [--page status]   # PNG della finestra
 ```
 L'app è firmata ad‑hoc: al primo avvio clic destro → Apri.
 

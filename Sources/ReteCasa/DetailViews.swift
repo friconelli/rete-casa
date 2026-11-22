@@ -9,49 +9,77 @@ struct DevicesView: View {
 
     var body: some View {
         HStack {
-            SectionTitle(text: "Dispositivi in rete", symbol: "network")
+            SectionTitle(text: "Router e mesh Starlink", symbol: "dot.radiowaves.left.and.right")
             Spacer()
             Button { Task { await model.scanDevices() } } label: {
                 if model.isBusy("scan") { ProgressView().controlSize(.small) } else { Label("Cerca", systemImage: "magnifyingglass") }
             }
-            .buttonStyle(PrimaryButtonStyle()).disabled(model.isBusy("scan"))
+            .buttonStyle(PrimaryButtonStyle()).disabled(model.anyBusy)
         }
-        Text("Router e mesh Starlink si riconoscono dall'indirizzo del costruttore. Telefoni e TV usano indirizzi casuali, quindi compaiono come «Altro».")
+        Text("Dai un nome a ogni nodo (per esempio «Mesh salone») guardando nell'app Starlink quale indirizzo ha. Un nodo spento resta in elenco come «non risponde».")
             .font(.callout).foregroundStyle(.secondary)
 
-        if model.devices.isEmpty {
-            EmptyHint(symbol: "network", title: "Nessuna scansione", message: "Premi «Cerca»: ci vogliono circa dieci secondi. macOS può chiedere il permesso per la rete locale.")
+        if model.nodes.isEmpty {
+            EmptyHint(symbol: "network", title: "Nessun nodo ancora", message: "Premi «Cerca»: ci vogliono circa dieci secondi. macOS può chiedere il permesso per la rete locale.")
         } else {
-            ForEach(model.devices) { d in
-                Card {
+            ForEach(model.nodes) { n in
+                Card(tint: n.online ? nil : .red) {
                     HStack(spacing: 14) {
-                        Image(systemName: d.kind.symbol).font(.title2).frame(width: 36)
-                            .foregroundStyle(d.isStarlinkNode ? Theme.accentDeep : .secondary)
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 8) {
-                                Text(d.kind.label).font(.headline)
-                                if d.ip == model.fireStickIP { Pill(text: "Fire Stick scelto", symbol: "checkmark", color: .green) }
-                            }
-                            Text("\(d.ip)  ·  \(d.mac.isEmpty ? "questo Mac" : d.mac)").font(.callout.monospaced()).foregroundStyle(.secondary)
+                        Image(systemName: n.isRouter ? "wifi.router.fill" : "dot.radiowaves.left.and.right").font(.title2).frame(width: 36)
+                            .foregroundStyle(n.online ? Theme.accentDeep : .red)
+                        VStack(alignment: .leading, spacing: 4) {
+                            TextField("Nome", text: Binding(get: { model.nodeNames[n.mac] ?? n.name },
+                                                            set: { model.nodeNames[n.mac] = $0 }))
+                                .textFieldStyle(.roundedBorder).frame(maxWidth: 220)
+                            Text("\(n.ip)  ·  \(n.mac)").font(.callout.monospaced()).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        ForEach(d.openPorts, id: \.self) { Pill(text: ":\($0)", color: .secondary) }
-                        if d.kind == .fireTV || d.kind == .other, d.ip != model.fireStickIP {
-                            Button("Usa come Fire Stick") { model.fireStickIP = d.ip }.glassButton()
+                        if n.online {
+                            Pill(text: n.latencyMs.map { "Online · \(Diagnosis.fmt($0)) ms" } ?? "Online", symbol: "checkmark", color: .green)
+                        } else {
+                            Pill(text: "Non risponde", symbol: "xmark", color: .red)
+                            Button("Dimentica") { model.forgetNode(n.mac) }.glassButton()
+                                .help("Se hai tolto questo nodo per sempre, non verrà più segnalato.")
                         }
                     }
                 }
             }
-            HStack {
-                Text("Nodi Starlink visti finora: \(model.devices.filter(\.isStarlinkNode).count). Se ne togli uno per sempre, azzera l'elenco.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button("Azzera nodi noti") { confirmForget = true }.glassButton()
-            }
-            .confirmationDialog("Dimenticare i nodi Starlink noti?", isPresented: $confirmForget) {
-                Button("Dimentica") { model.forgetKnownNodes() }
-            } message: { Text("Da ora la diagnosi segnalerà «nodo che non risponde» solo per quelli visibili adesso.") }
         }
+
+        SectionTitle(text: "Altri dispositivi", symbol: "laptopcomputer.and.iphone").padding(.top, 8)
+        Text("Telefoni e TV usano indirizzi casuali, quindi molti compaiono come «Altro dispositivo». Se la chiavetta non viene riconosciuta, scegli tu quale è.")
+            .font(.callout).foregroundStyle(.secondary)
+        let others = model.devices.filter { !$0.isStarlinkNode }
+        if others.isEmpty {
+            EmptyHint(symbol: "network", title: "Nessuna scansione", message: "Premi «Cerca» in alto.")
+        }
+        ForEach(others) { d in
+            Card {
+                HStack(spacing: 14) {
+                    Image(systemName: d.kind.symbol).font(.title2).frame(width: 36).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 8) {
+                            Text(d.kind.label).font(.headline)
+                            if d.ip == model.fireStickIP { Pill(text: "Fire Stick scelto", symbol: "checkmark", color: .green) }
+                        }
+                        Text("\(d.ip)  ·  \(d.mac.isEmpty ? "questo Mac" : d.mac)").font(.callout.monospaced()).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    ForEach(d.openPorts, id: \.self) { Pill(text: ":\($0)", color: .secondary) }
+                    if (d.kind == .fireTV || d.kind == .other), d.ip != model.fireStickIP {
+                        Button("Usa come Fire Stick") { model.fireStickIP = d.ip }.glassButton()
+                    }
+                }
+            }
+        }
+
+        HStack {
+            Spacer()
+            Button("Azzera l'elenco dei nodi") { confirmForget = true }.glassButton()
+        }
+        .confirmationDialog("Azzerare l'elenco dei nodi Starlink?", isPresented: $confirmForget) {
+            Button("Azzera", role: .destructive) { model.forgetKnownNodes() }
+        } message: { Text("Perdi i nomi dati ai nodi, e un nodo spento non verrà più segnalato.") }
     }
 }
 
@@ -83,10 +111,31 @@ struct FireStickView: View {
                     Button { Task { await model.refreshFireStick() } } label: {
                         if model.isBusy("firestick") { ProgressView().controlSize(.small) } else { Text("Collega e leggi") }
                     }
-                    .buttonStyle(PrimaryButtonStyle()).disabled(model.fireStickIP.isEmpty || !model.adbInstalled || model.isBusy("firestick"))
+                    .buttonStyle(PrimaryButtonStyle()).disabled(model.fireStickIP.isEmpty || !model.adbInstalled || model.anyBusy)
                     Spacer()
                 }
-                connectMessage
+                if let p = model.fireStickProblem {
+                    Label(p, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                }
+            }
+        }
+
+        if model.fireStickProblem != nil || model.fireStick == nil {
+            Card {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("La chiavetta non risponde?").font(.headline)
+                    Text("Accendi la TV e premi un tasto del telecomando per svegliarla. L'app cerca di nuovo la chiavetta sulla rete (anche se ha cambiato indirizzo) e riprova a collegarsi fino a 6 volte.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    HStack {
+                        Button { model.perform(.recoverFireStick) } label: {
+                            if model.isBusy("recover") { ProgressView().controlSize(.small) } else { Label("Riconnetti Fire Stick", systemImage: "link") }
+                        }
+                        .buttonStyle(PrimaryButtonStyle()).disabled(model.anyBusy || !model.adbInstalled)
+                        if !model.recoveryMessage.isEmpty { Text(model.recoveryMessage).font(.callout).foregroundStyle(Theme.accentDeep) }
+                    }
+                    Text("Se compare «Consentire il debug?» sulla TV: spunta «Consenti sempre» e premi OK. Per attivare il debug: Impostazioni → La mia Fire TV → Opzioni sviluppatore → Debug ADB.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
 
@@ -100,7 +149,7 @@ struct FireStickView: View {
                            caption: f.ping.map { "\(Diagnosis.fmt($0.loss))% persi · picco \(Diagnosis.fmt($0.max)) ms" } ?? "",
                            severity: (f.ping?.loss ?? 0) >= 3 ? .bad : .info, symbol: "globe")
                 MetricTile(title: "Velocità reale", value: f.downMbps.map { Diagnosis.fmt($0) } ?? "—", unit: "Mbps",
-                           caption: f.foregroundApp.map { "In primo piano: \($0)" } ?? "Premi «Misura velocità»",
+                           caption: f.foregroundApp.map { "In primo piano: \($0)" } ?? "Premi «Misura velocità reale»",
                            severity: f.downMbps.map { $0 < 8 ? .bad : $0 < 25 ? .warn : .ok } ?? .info, symbol: "speedometer")
             }
 
@@ -118,7 +167,7 @@ struct FireStickView: View {
                             ProgressView().controlSize(.small)
                         } else {
                             Button("Cerca segnale migliore") { confirmSwitch = true }
-                                .buttonStyle(PrimaryButtonStyle()).disabled(!model.adbInstalled)
+                                .buttonStyle(PrimaryButtonStyle()).disabled(!model.adbInstalled || model.anyBusy)
                         }
                     }
                     if !model.switchMessage.isEmpty { Text(model.switchMessage).font(.callout).foregroundStyle(Theme.accentDeep) }
@@ -133,29 +182,17 @@ struct FireStickView: View {
             }
             .confirmationDialog("Riavviare il Wi‑Fi del Fire Stick?", isPresented: $confirmSwitch) {
                 Button("Riavvia e cerca", role: .destructive) { model.fireStickSmartSwitch() }
-            } message: { Text("Se stai guardando qualcosa, l'immagine si ferma per circa un minuto.") }
+            } message: { Text("Se stai guardando qualcosa, l'immagine si ferma per circa un minuto a tentativo.") }
 
             HStack {
                 Button { Task { await model.fireStickSpeedTest() } } label: {
                     if model.isBusy("fsspeed") { ProgressView().controlSize(.small) } else { Label("Misura velocità reale", systemImage: "speedometer") }
                 }
-                .glassButton().disabled(model.isBusy("fsspeed"))
+                .glassButton().disabled(model.anyBusy)
                 .help("Scarica 25 MB direttamente dalla chiavetta: occupa la linea ~15 s.")
-                Button { Task { await model.refreshFireStick() } } label: { Label("Aggiorna", systemImage: "arrow.clockwise") }.glassButton()
+                Button { Task { await model.refreshFireStick() } } label: { Label("Aggiorna", systemImage: "arrow.clockwise") }
+                    .glassButton().disabled(model.anyBusy)
             }
-        } else {
-            EmptyHint(symbol: "tv", title: "Fire Stick non collegato",
-                      message: "Sulla chiavetta: Impostazioni → La mia Fire TV → Opzioni sviluppatore → Debug ADB. Poi premi «Collega e leggi» e conferma «Consenti sempre» sulla TV.")
-        }
-    }
-
-    @ViewBuilder private var connectMessage: some View {
-        switch model.connectResult {
-        case .none, .some(.ok): EmptyView()
-        case .some(.adbMissing): Text("ADB non è installato.").foregroundStyle(.orange)
-        case .some(.refused): Text("Connessione rifiutata: attiva il Debug ADB sul Fire Stick (Opzioni sviluppatore) e controlla l'indirizzo.").foregroundStyle(.orange).font(.callout)
-        case .some(.unauthorized): Text("Sulla TV compare «Consentire il debug?»: spunta «Consenti sempre» e premi OK, poi riprova.").foregroundStyle(.orange).font(.callout)
-        case .some(.failed(let m)): Text(m.isEmpty ? "Collegamento non riuscito." : m).foregroundStyle(.orange).font(.callout)
         }
     }
 }
@@ -169,14 +206,7 @@ struct MacWiFiView: View {
         HStack {
             SectionTitle(text: "Wi‑Fi del Mac", symbol: "wifi")
             Spacer()
-            Button { Task { await model.reconnectMac() } } label: {
-                if model.isBusy("mac") { ProgressView().controlSize(.small) } else { Label("Riconnetti Wi‑Fi", systemImage: "arrow.triangle.2.circlepath") }
-            }
-            .buttonStyle(PrimaryButtonStyle()).disabled(model.isBusy("mac"))
         }
-        Text("«Riconnetti» spegne e riaccende il Wi‑Fi: il Mac rifà la scelta del nodo mesh e della banda. Spesso riporta un Mac rimasto sui 2,4 GHz sui 5 GHz.")
-            .font(.callout).foregroundStyle(.secondary)
-        if !model.macMessage.isEmpty { Text(model.macMessage).font(.callout).foregroundStyle(Theme.accentDeep) }
 
         if let w = model.wifi {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 14)], spacing: 14) {
@@ -185,7 +215,27 @@ struct MacWiFiView: View {
                 MetricTile(title: "Collegamento", value: "\(w.linkMbps)", unit: "Mbps", caption: w.phy, severity: .info, symbol: "arrow.left.arrow.right")
             }
         } else {
-            EmptyHint(symbol: "wifi.slash", title: "Wi‑Fi non rilevato", message: "Il Mac non risulta collegato a una rete Wi‑Fi.")
+            EmptyHint(symbol: "wifi.slash", title: "Wi‑Fi non rilevato", message: "Il Mac non risulta collegato a una rete Wi‑Fi. Fai un'analisi completa dalla pagina Stato.")
+        }
+
+        Card {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Cerca connessione migliore").font(.headline)
+                Text("Spegne e riaccende il Wi‑Fi del Mac (fino a 4 volte) finché si aggancia ai 5 GHz o a un segnale forte. Ogni volta il Mac rifà la scelta del nodo mesh; per qualche secondo resti senza internet.")
+                    .font(.callout).foregroundStyle(.secondary)
+                HStack {
+                    Button { Task { await model.macSmartReconnect() } } label: {
+                        if model.isBusy("mac") { ProgressView().controlSize(.small) } else { Label("Cerca connessione migliore", systemImage: "arrow.triangle.2.circlepath") }
+                    }
+                    .buttonStyle(PrimaryButtonStyle()).disabled(model.anyBusy)
+                    Button { Task { await model.reconnectMac() } } label: { Text("Riconnetti una volta") }
+                        .glassButton().disabled(model.anyBusy)
+                }
+                if !model.macMessage.isEmpty { Text(model.macMessage).font(.callout).foregroundStyle(Theme.accentDeep) }
+                ForEach(Array(model.macAttempts.enumerated()), id: \.offset) { _, line in
+                    Text(line).font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+                }
+            }
         }
 
         HStack {
@@ -201,7 +251,7 @@ struct MacWiFiView: View {
                     Image(systemName: "wifi").foregroundStyle(.secondary)
                     Text(name)
                     Spacer()
-                    Button("Collegati") { Task { await model.join(name) } }.glassButton().disabled(model.isBusy("mac"))
+                    Button("Collegati") { Task { await model.join(name) } }.glassButton().disabled(model.anyBusy)
                 }
             }
         }
@@ -265,13 +315,13 @@ struct MonitorView: View {
     }
 }
 
-// MARK: - Attività
+// MARK: - Registro
 
 struct ActivityView: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
-        SectionTitle(text: "Attività", symbol: "list.bullet.rectangle")
+        SectionTitle(text: "Registro", symbol: "list.bullet.rectangle")
         if model.log.isEmpty {
             EmptyHint(symbol: "list.bullet.rectangle", title: "Ancora niente", message: "Qui compare tutto quello che l'app fa.")
         } else {
